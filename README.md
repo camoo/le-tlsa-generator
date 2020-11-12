@@ -28,3 +28,8 @@ Sets domain name for which DANE record should be generated. Default domain if no
 `-p | --port <port-number>`
 
 Sets port number for which DANE record should be generated. Default port if not specified is **25**
+
+## Example Output
+
+- `_25._tcp.domain.tld. IN TLSA 2 1 1 60b87458369649498769864987947894787484763769383873078378947847`
+- `_25._tcp.domain.tld. IN TLSA 3 1 1 79873696494987698649879478947874847637693838730783789478476e8a1`
