@@ -1,0 +1,126 @@
+#!/bin/bash
+# GENERATE DANE FOR TLSA RECORD WHEN using LET'S ENCRYPT Certificate
+# -------------------------------------------------------------------------
+# Copyright (c) 2020 Camoo Sarl
+#
+# -------------------------------------------------------------------------
+LE_PATH="/etc/letsencrypt/live"
+LE_AUTH="x3"
+LE_CROSS_SIGNED="lets-encrypt-${LE_AUTH}-cross-signed.pem"
+
+usage ()
+{
+	echo #
+	echo "Usage : le-tlsa"
+	echo #
+	echo "SYNOPSIS"
+	echo "    le-tlsa [--help| -h] [--type| -t <311|211>] [--domain| -d <domain.tld>] [--port| -p <25>]"
+	echo #
+
+	echo "DESCRIPTION"
+	echo "    le-tlsa gerenates the needed DANE FOR TLSA DNS RECORD"
+	echo "    Use this script only if you are using Let's Encrypt Certificate"
+	echo #
+	echo 'OPTIONS'
+	echo '--help | -h'
+	echo '    Prints the synopsis and a list of the most commonly used commands.'
+	echo '-t | --type <311|211>'
+	echo '    Sets the TLSA Certificate Usages, TLSA-Selectors and TLSA Matching Types for DANE TLSA DNS-Record. This script only support 3 1 1 and 2 1 1'
+	echo '-d | --domain <domain.tld>'
+	echo '    Sets domain name for which DANE record should be generated. Default domain if not specified is the defined server hostname. Relevant only for type 311'
+	echo '-p | --port <port-number>'
+	echo '    Sets port number for which DANE record should be generated. Default port if not specified is 25'
+
+	exit
+}
+
+for h in ${@}
+do
+	if [ "$h" = "-h" -o "$h" = "--help" ]; then
+		usage
+		exit 0
+	fi
+done
+
+while [[ $# -gt 1 ]]
+do
+	key="$1"
+
+	case $key in
+		-t|--type)
+			TLSA_TYPE="$2"
+			shift # past argument
+			;;
+		-d|--domain)
+			MX_NAME="$2"
+			shift # past argument
+			;;
+		-p|--port)
+			PORT="$2"
+			shift # past argument
+			;;
+		*)
+			# unknown option
+			;;
+	esac
+	shift # past argument or value
+done
+
+if [ -z "$TLSA_TYPE" ]; then
+	echo "TLSA_TYPE is missing -t 311|211"
+	echo "[FAILED]"
+	exit 0
+fi
+
+if [ -z "$MX_NAME" ]; then
+	MX_NAME=$(uname -n)
+fi
+
+if [ -z "$PORT" ]; then
+	PORT="25"
+fi
+
+tlsa_311()
+{
+
+	if [ ! -d "${LE_PATH}/${MX_NAME}" ]; then
+		echo "Certificate is missing for Hostname: ${MX_NAME}"
+		echo "[FAILED]"
+		exit 0
+	fi
+
+	printf '_%d._tcp.%s. IN TLSA 3 1 1 %s\n' \
+		${PORT} \
+		${MX_NAME} \
+		$(openssl x509 -in ${LE_PATH}/${MX_NAME}/cert.pem -noout -pubkey |
+		openssl pkey -pubin -outform DER |
+		openssl dgst -sha256 -binary |
+		hexdump -ve '/1 "%02x"')
+}
+
+tlsa_211()
+{
+	if [ ! -f "${LE_CROSS_SIGNED}" -o $(cat ${LE_CROSS_SIGNED} | wc -l ) -eq 0 ]; then
+		echo "Download from letsencrypt.org"
+		wget https://letsencrypt.org/certs/lets-encrypt-${LE_AUTH}-cross-signed.pem.txt -O ${LE_CROSS_SIGNED}
+	fi
+
+	HASH=$(openssl x509 -in ${LE_CROSS_SIGNED} -noout -pubkey | openssl rsa -pubin -outform DER | openssl dgst -sha256 -hex | awk '{print "", $NF}')
+	printf '_%d._tcp.%s. IN TLSA 2 1 1 %s\n' \
+		${PORT} \
+		${MX_NAME} \
+		${HASH}
+}
+
+FUNC_NAME="tlsa_${TLSA_TYPE}"
+
+fn_exists=`declare -f -F $FUNC_NAME`
+if [ ! -n "$fn_exists" ]; then
+	echo "Type '${FUNC_NAME}' not supported at the moment"
+	echo "[FAILED]"
+	exit 0
+fi
+
+$FUNC_NAME
+
+exit 1
