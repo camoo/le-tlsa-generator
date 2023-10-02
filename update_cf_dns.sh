@@ -2,7 +2,13 @@
 # Update/generate DANE and update cloudflare TLSA RECORD WHEN using LET'S ENCRYPT Certificate
 # -------------------------------------------------------------------------
 # Copyright (c) 2023 Camoo Sarl
-#
+
+#Using Renewal Configuration File:
+#Alternatively, you can edit the renewal configuration file directly.
+# For each domain, there is a separate configuration file located in /etc/letsencrypt/renewal/. The file would be named something like domain.com.conf.
+
+# [renewalparams]
+# post_hook = /etc/letsencrypt/renewal-hooks/post/update_cf_dns.sh
 # -------------------------------------------------------------------------
 show_usage() {
   echo "Usage: $0 --zone-id ZONE_ID --record-id RECORD_ID --api-token API_TOKEN"
